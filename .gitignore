@@ -4,7 +4,6 @@
 __pycache__
 
 # Environments 
-/api/uploads/
 .flaskenv
 .env 
 .venv 
@@ -13,3 +12,9 @@ venv/
 ENV/ 
 env.bak/ 
 venv.bak/ 
+
+# folder
+/api/uploads/
+
+# misc
+.DS_Store
