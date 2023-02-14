@@ -1,68 +1,44 @@
-from flask import Flask, request, jsonify
-import requests
-from twilio.twiml.messaging_response import MessagingResponse
 import os
-from twilio.rest import Client
+import requests    # ← new import
+from dotenv import load_dotenv
+from flask import Flask, request
+from twilio.twiml.messaging_response import MessagingResponse
+from random import randint
 
-
-account_sid = os.environ.get('TWILIO_ACCOUNT_SID')
-auth_token = os.environ.get('TWILIO_AUTH_TOKEN')
-client = Client(account_sid, auth_token)
+load_dotenv()
 
 app = Flask(__name__)
 
-
+def respond(message):
+    response = MessagingResponse()
+    response.message(message)
+    return str(response)
 
 @app.route('/')
-def home():
-    print('hot')
-    print(account_sid, auth_token)
-    src='https://api.twilio.com/2010-04-01/accounts/aca066a52abc10a525037cbfc138cec0a1/messages/mmc1578e79f26daae9e1945a780f484bb8/media/me1f548e3ed3cd6359f8d6b9dd485100eb'
-    audio = requests.get(src, auth=(account_sid, auth_token))
-    print(audio)
+def hello():
     return 'Hello, World!'
 
-@app.route('/about')
-def about():
-    return 'About'
-
-
-@app.route('/transcribe', methods=['POST'])
-def transcribe():
-    audio_src = request.values.get('MediaUrl0', '').lower()
-    resp = MessagingResponse()
-    msg = resp.message()
-    return str(msg)
-
-@app.route('/bot', methods=['POST'])
-def bot():
-    incoming_msg = request.values.get('Body', '').lower()
-    resp = MessagingResponse()
-    msg = resp.message()
-    responded = False
-    if 'quote' in incoming_msg:
-        # return a quote
-        r = requests.get('https://api.quotable.io/random')
-        if r.status_code == 200:
-            data = r.json()
-            quote = f'{data["content"]} ({data["author"]})'
+@app.route('/message', methods=['POST'])
+def reply():
+    sender = request.form.get('From')
+    message = request.form.get('Body')
+    media_url = request.form.get('MediaUrl0')
+    print(f'{sender} sent {message}')
+    if media_url:
+        r = requests.get(media_url)
+        content_type = r.headers['Content-Type']
+        username = sender.split(':')[1]  # remove the whatsapp: prefix from the number
+        id = randint(0,999999999)
+        print(id)
+        if content_type == 'audio/ogg':
+            filename = f'uploads/{username}/{id}.ogg'
+        if filename:
+            if not os.path.exists(f'uploads/{username}'):
+                os.mkdir(f'uploads/{username}')
+            with open(filename, 'wb') as f:
+                f.write(r.content)
+            return respond('Thank you! Your voice note was received.')
         else:
-            quote = 'I could not retrieve a quote at this time, sorry.'
-        msg.body(quote)
-        responded = True
-    if 'cat' in incoming_msg:
-        # return a cat pic
-        msg.media('https://cataas.com/cat')
-        responded = True
-    if not responded:
-        audio_src = request.values.get('MediaUrl0', '').lower()
-        src='https://api.twilio.com/2010-04-01/accounts/aca066a52abc10a525037cbfc138cec0a1/messages/mmc1578e79f26daae9e1945a780f484bb8/media/me1f548e3ed3cd6359f8d6b9dd485100eb'
-        audio = requests.get(audio_src, auth=(account_sid, auth_token))
-        print(audio_src)
-        print(audio)
-        msg.body('I only know about famous quotes and cats, sorry!')
-    return str(resp)
-
-
-if __name__ == '__main__':
-    app.run(port=4000)
+            return respond('The file that you submitted is not a supported audio type.')
+    else:
+        return respond('Please send a voice note!')
